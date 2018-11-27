@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Docker.DotNet;
 using Docker.DotNet.Models;
@@ -21,6 +23,55 @@ namespace Sample1
 
             DockerClient client = new DockerClientConfiguration(new Uri("tcp://localhost:2375"))
      .CreateClient();
+
+
+            //bash command
+            var echo = Encoding.UTF8.GetBytes("ls -al\n");
+            //docker exec -it aspnetcore_sample15 bash
+            Task<ContainerExecCreateResponse> execCreateRsp = client.Containers.ExecCreateContainerAsync("0eeb1f915c66", new ContainerExecCreateParameters()
+            {
+                AttachStderr = true,
+                AttachStdin = true,
+                AttachStdout = true,
+                Cmd = new List<string>() {"bash" },
+                Detach = false,
+                Tty = false,
+                User = "root",
+                Privileged = true
+            });
+
+            execCreateRsp.Wait();
+
+            string execId = execCreateRsp.Result.ID;
+            Task<MultiplexedStream> execStartRsp = client.Containers.StartAndAttachContainerExecAsync(execId, false, default(CancellationToken));
+            execStartRsp.Wait();
+            byte[] result = new byte[1024];
+            execStartRsp.Result.WriteAsync(echo, 0, echo.Length, CancellationToken.None).Wait();
+            MultiplexedStream.ReadResult readResult = execStartRsp.Result.ReadOutputAsync(result, 0, 1024, default(CancellationToken)).Result;
+            Console.Write(Encoding.UTF8.GetString(result, 0, readResult.Count));
+
+            //response:
+
+            //-rw-r--r-- 1 root root    137 Nov 14 20:02 appsettings.Development.json
+            //-rw-r--r-- 1 root root     97 Nov 14 20:02 appsettings.json
+            //-rw-r--r-- 1 root root  77824 Nov 14 20:04 aspnetapp.Views.dll
+            //-rw-r--r-- 1 root root   5472 Nov 14 20:04 aspnetapp.Views.pdb
+            //-rw-r--r-- 1 root root 223805 Nov 14 20:04 aspnetapp.deps.json
+            //-rw-r--r-- 1 root root   9728 Nov 14 20:04 aspnetapp.dll
+            //-rw-r--r-- 1 root root   1624 Nov 14 20:04 aspnetapp.pdb
+            //-rw-r--r-- 1 root root    213 Nov 14 20:04 aspnetapp.runtimeconfig.json
+            //-rw-r--r-- 1 root root    458 Nov 14 20:04 web.config
+            //drwxr-xr-x 6 root root   4096 Nov 14 20:04 wwwroot
+
+            Console.ReadKey();
+
+
+            //docker stop container
+            client.Containers.StopContainerAsync("943b9ef8ac03", new ContainerStopParameters()
+            {
+
+            });
+
             //docker images
             var images = client.Images.ListImagesAsync(new ImagesListParameters()
             {
@@ -46,18 +97,19 @@ namespace Sample1
             }
 
 
+
             ////docker pull
 
-            //client.Images.CreateImageAsync(new Docker.DotNet.Models.ImagesCreateParameters()
-            //{
-            //    FromImage = "mysql",
-            //    Tag = "5.5",
-            //},
-            //new AuthConfig()
-            //{
+            client.Images.CreateImageAsync(new Docker.DotNet.Models.ImagesCreateParameters()
+            {
+                FromImage = "mysql",
+                Tag = "5.5",
+            },
+            new AuthConfig()
+            {
 
-            //},
-            //new Progress()).Wait();
+            },
+            new Progress()).Wait();
 
 
             //docker create container 
@@ -91,29 +143,23 @@ namespace Sample1
             //var createContainerResponse = client.Containers.CreateContainerAsync(new CreateContainerParameters(createContainerParameters)).Result;
 
 
-            string mContainerPort = "8080";
-            string mHostPort = "8081";
-
+            //docker run
             var createR = client.Containers.CreateContainerAsync(new CreateContainerParameters()
             {
                 Image = "microsoft/dotnet-samples:aspnetapp",
-                Name = "aspnetcore_sample7",
-                ExposedPorts = new Dictionary<string, object> {
-        {
-            mContainerPort, new {
-                HostPort = mHostPort
-            }
-        }
-    },
+                Name = "aspnetcore_sample16",
+                ExposedPorts = new Dictionary<string, EmptyStruct>() {
+                    { "80", new EmptyStruct() }
+                },
                 HostConfig = new HostConfig()
                 {
-                    PublishAllPorts = true,
+                    //PublishAllPorts = true,
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {
-                        { "80/tcp",
+                        //contariner port
+                        { "80",
                             new List<PortBinding> {
                                 new PortBinding {
-                                    HostIP="0.0.0.0",
                                     HostPort ="8000"
                                 }
                             }
@@ -125,10 +171,10 @@ namespace Sample1
 
             //docker start
             //943b9ef8ac03
-            //var r1 = client.Containers.StartContainerAsync("82e0fb93b86a", new ContainerStartParameters()
-            //{
-            //    DetachKeys = "123123123123123123"
-            //}).Result;
+            var r1 = client.Containers.StartContainerAsync("82e0fb93b86a", new ContainerStartParameters()
+            {
+                //DetachKeys = ""
+            }).Result;
 
 
 
@@ -152,31 +198,22 @@ namespace Sample1
             //}).Result;
 
 
-            ////docker pull
-            //var createContainerResponse = client.Containers.CreateContainerAsync(new CreateContainerParameters()
-            //{
-            //    Image = "hello-world",
-            //    Name = "hello-world-01",
-
-            //}).Result;
-
-            //var processes = client.Containers.ListProcessesAsync();
-
-
-
-            //docker image rm [OPTIONS] IMAGE [IMAGE...]
-
-            //var deleteR = client.Images.DeleteImageAsync("hello-world", new ImageDeleteParameters()
-            //{
-            //    Force = true
-            //}).Result;
-
-            //client.
+            //docker create  image
+            var createContainerResponse = client.Containers.CreateContainerAsync(new CreateContainerParameters()
+            {
+                Image = "hello-world",
+                Name = "hello-world-01",
+            }).Result;
 
 
 
 
+            //docker image rm[OPTIONS] IMAGE[IMAGE...]
 
+            var deleteR = client.Images.DeleteImageAsync("hello-world", new ImageDeleteParameters()
+            {
+                Force = true
+            }).Result;
 
             Console.ReadKey();
         }

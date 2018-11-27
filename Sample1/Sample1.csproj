@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\Downloads\Docker.DotNet-master\Docker.DotNet-master\src\Docker.DotNet\Docker.DotNet.csproj" />
+    <PackageReference Include="Docker.DotNet" Version="3.125.2" />
   </ItemGroup>
 
 </Project>
